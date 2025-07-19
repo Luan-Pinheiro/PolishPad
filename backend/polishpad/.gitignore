@@ -4,6 +4,16 @@ target/
 !**/src/main/**/target/
 !**/src/test/**/target/
 
+
+# Comum a todos
+# ======================
+*.log
+*.env
+.env.*
+
+# Application-specific
+application.properties
+
 ### STS ###
 .apt_generated
 .classpath
