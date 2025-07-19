@@ -1,0 +1,74 @@
+version: '3.8'
+
+services:
+  # Ollama service with Gemma2:7B model
+  ollama:
+    image: ollama/ollama:latest
+    container_name: polishpad-ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    environment:
+      - OLLAMA_HOST=0.0.0.0
+    command: >
+      sh -c "
+        ollama serve &
+        sleep 10 &&
+        ollama pull gemma2:7b &&
+        wait
+      "
+    networks:
+      - polishpad-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:11434/api/tags"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  # Backend Spring Boot application
+  backend:
+    build:
+      context: ./backend/polishpad
+      dockerfile: Dockerfile
+    container_name: polishpad-backend
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=docker
+      - OLLAMA_BASE_URL=http://ollama:11434
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks:
+      - polishpad-network
+    volumes:
+      - ./backend/polishpad/src:/app/src
+    restart: unless-stopped
+
+  # Frontend Preact application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: polishpad-frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_BASE_URL=http://localhost:8080
+    depends_on:
+      - backend
+    networks:
+      - polishpad-network
+    volumes:
+      - ./frontend/src:/app/src
+      - ./frontend/public:/app/public
+    restart: unless-stopped
+
+volumes:
+  ollama_data:
+    driver: local
+
+networks:
+  polishpad-network:
+    driver: bridge
